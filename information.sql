@@ -48,7 +48,7 @@ FROM all_takeoffs
 LIMIT 10;
 
 
--- Step 5: Flights by year
+-- Flights by year
 
 DROP TABLE IF EXISTS flights_by_year;
 
@@ -64,7 +64,7 @@ SELECT *
 FROM flights_by_year;
 
 
--- Step 6: Average departure delay by year
+-- Average departure delay by year
 
 DROP TABLE IF EXISTS avg_departure_delay_by_year;
 
@@ -81,7 +81,7 @@ SELECT *
 FROM avg_departure_delay_by_year;
 
 
--- Step 7: Worst origin airports by average departure delay
+-- Worst origin airports by average departure delay
 
 DROP TABLE IF EXISTS worst_origin_airports_delay;
 
@@ -101,7 +101,7 @@ FROM worst_origin_airports_delay
 LIMIT 20;
 
 
--- Step 8: Cancellation rate by airport
+-- Cancellation rate by airport
 
 DROP TABLE IF EXISTS cancellation_rate_by_airport;
 
@@ -120,81 +120,6 @@ SELECT *
 FROM cancellation_rate_by_airport
 LIMIT 10;
 
-
--- Step 9: Delay reason totals
-
-DROP TABLE IF EXISTS delay_reason_totals;
-
-CREATE TABLE delay_reason_totals AS
-SELECT
-    SUM(carrier_delay) AS carrier_delay_minutes,
-    SUM(weather_delay) AS weather_delay_minutes,
-    SUM(nas_delay) AS nas_delay_minutes,
-    SUM(security_delay) AS security_delay_minutes,
-    SUM(late_aircraft_delay) AS late_aircraft_delay_minutes
-FROM all_takeoffs;
-
-SELECT *
-FROM delay_reason_totals;
-
-
--- Step 10: Carrier delay summary
-
-DROP TABLE IF EXISTS carrier_delay_summary;
-
-CREATE TABLE carrier_delay_summary AS
-SELECT
-    op_carrier,
-    COUNT(*) AS total_flights,
-    ROUND(AVG(dep_delay)::numeric, 2) AS avg_departure_delay_minutes,
-    ROUND(AVG(arr_delay)::numeric, 2) AS avg_arrival_delay_minutes
-FROM all_takeoffs
-WHERE cancelled = 0
-GROUP BY op_carrier
-HAVING COUNT(*) >= 1000
-ORDER BY avg_departure_delay_minutes DESC;
-
-SELECT *
-FROM carrier_delay_summary;
-
-
--- Step 11: Busiest routes
-
-DROP TABLE IF EXISTS busiest_routes;
-
-CREATE TABLE busiest_routes AS
-SELECT
-    origin,
-    dest,
-    COUNT(*) AS total_flights,
-    ROUND(AVG(dep_delay)::numeric, 2) AS avg_departure_delay_minutes,
-    ROUND(AVG(arr_delay)::numeric, 2) AS avg_arrival_delay_minutes
-FROM all_takeoffs
-WHERE cancelled = 0
-GROUP BY origin, dest
-ORDER BY total_flights DESC;
-
-SELECT *
-FROM busiest_routes
-LIMIT 5;
-
-
--- Step 12: Cancellations by year
-
-DROP TABLE IF EXISTS cancellations_by_year;
-
-CREATE TABLE cancellations_by_year AS
-SELECT
-    flight_year,
-    COUNT(*) AS total_flights,
-    SUM(cancelled) AS cancelled_flights,
-    ROUND((100.0 * SUM(cancelled) / COUNT(*))::numeric, 2) AS cancellation_rate_percent
-FROM all_takeoffs
-GROUP BY flight_year
-ORDER BY flight_year;
-
-SELECT *
-FROM cancellations_by_year;
 
 
 -- Step 13: Monthly delay summary
@@ -219,26 +144,7 @@ SELECT *
 FROM monthly_delay_summary;
 
 
--- Step 14: Delayed flight rate by year
 
-DROP TABLE IF EXISTS delayed_flight_rate_by_year;
-
-CREATE TABLE delayed_flight_rate_by_year AS
-SELECT
-    flight_year,
-    COUNT(*) AS total_flights,
-    SUM(CASE WHEN dep_delay > 15 THEN 1 ELSE 0 END) AS delayed_flights,
-    ROUND(
-        (100.0 * SUM(CASE WHEN dep_delay > 15 THEN 1 ELSE 0 END) / COUNT(*))::numeric,
-        2
-    ) AS delayed_flight_rate_percent
-FROM all_takeoffs
-WHERE cancelled = 0
-GROUP BY flight_year
-ORDER BY flight_year;
-
-SELECT *
-FROM delayed_flight_rate_by_year;
 -- ============================================================
 -- Weather Analytics Section
 -- ============================================================
@@ -254,8 +160,8 @@ FROM airport_weather
 LIMIT 10;
 
 
--- Step 16: Create flight-weather joined table
--- Joins each flight to the weather at its origin airport on that flight date.
+-- Flight-weather
+
 
 DROP TABLE IF EXISTS flight_weather_joined;
 
@@ -314,7 +220,7 @@ FROM flight_weather_joined
 LIMIT 10;
 
 
--- Step 17: Average delay by weather category
+--Average delay by weather category
 
 DROP TABLE IF EXISTS delay_by_weather_category;
 
@@ -332,52 +238,8 @@ ORDER BY avg_departure_delay_minutes DESC;
 SELECT *
 FROM delay_by_weather_category;
 
-
--- Step 18: Delay comparison for rainy/snowy vs non-rainy/snowy days
-
-DROP TABLE IF EXISTS bad_weather_delay_comparison;
-
-CREATE TABLE bad_weather_delay_comparison AS
-SELECT
-    CASE
-        WHEN precipitation_in > 0 OR snowfall_in > 0 OR wind_speed_mph >= 25
-            THEN 'Bad Weather Day'
-        ELSE 'Normal Weather Day'
-    END AS weather_day_type,
-    COUNT(*) AS total_flights,
-    ROUND(AVG(dep_delay)::numeric, 2) AS avg_departure_delay_minutes,
-    ROUND(AVG(arr_delay)::numeric, 2) AS avg_arrival_delay_minutes,
-    ROUND((100.0 * SUM(cancelled) / COUNT(*))::numeric, 2) AS cancellation_rate_percent
-FROM flight_weather_joined
-GROUP BY weather_day_type
-ORDER BY avg_departure_delay_minutes DESC;
-
-SELECT *
-FROM bad_weather_delay_comparison;
-
-
--- Step 19: Airport weather sensitivity
-
-DROP TABLE IF EXISTS airport_weather_sensitivity;
-
-CREATE TABLE airport_weather_sensitivity AS
-SELECT
-    origin,
-    weather_category,
-    COUNT(*) AS total_flights,
-    ROUND(AVG(dep_delay)::numeric, 2) AS avg_departure_delay_minutes,
-    ROUND(AVG(arr_delay)::numeric, 2) AS avg_arrival_delay_minutes
-FROM flight_weather_joined
-WHERE cancelled = 0
-GROUP BY origin, weather_category
-HAVING COUNT(*) >= 100
-ORDER BY origin, avg_departure_delay_minutes DESC;
-
-SELECT *
-FROM airport_weather_sensitivity;
-
-
--- Step 20: High wind impact
+ 
+ --High wind impact
 
 DROP TABLE IF EXISTS high_wind_delay_impact;
 
@@ -398,3 +260,16 @@ ORDER BY avg_departure_delay_minutes DESC;
 
 SELECT *
 FROM high_wind_delay_impact;
+
+-- Busient flight routes
+SELECT
+    origin || ' → ' || dest AS route,
+    COUNT(*) AS total_flights,
+    ROUND(AVG(dep_delay)::numeric, 2) AS avg_departure_delay,
+    ROUND(AVG(arr_delay)::numeric, 2) AS avg_arrival_delay,
+    ROUND(100.0 * AVG(cancelled)::numeric, 2) AS cancellation_rate_pct
+FROM all_flights
+GROUP BY origin, dest
+HAVING COUNT(*) >= 1000
+ORDER BY total_flights DESC
+LIMIT 10;
