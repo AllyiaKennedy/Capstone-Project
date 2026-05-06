@@ -67,30 +67,70 @@ WHERE is_cancelled = 0
 GROUP BY origin
 ORDER BY avg_arrival_delay DESC;
 
---Bad Weather vs. Normal Weather
+--Delay Length Based on Wind Type
+ SELECT
     CASE
-        WHEN bad_weather_flag = 1 THEN 'Bad Weather'
-        ELSE 'Normal Weather'
-    END AS weather_condition,
+        WHEN high_wind = 1 THEN 'High Wind'
+        ELSE 'Normal Wind'
+    END AS wind_condition,
+
     COUNT(*) AS total_flights,
-    ROUND(AVG(arr_delay_clean)::numeric, 2) AS avg_arrival_delay,
-    ROUND(AVG(dep_delay_clean)::numeric, 2) AS avg_departure_delay
+
+    SUM(CASE WHEN COALESCE(weather_delay, 0) > 0 THEN 1 ELSE 0 END) AS flights_with_weather_delay,
+
+    ROUND(
+        100.0 * SUM(CASE WHEN COALESCE(weather_delay, 0) > 0 THEN 1 ELSE 0 END)::numeric 
+        / NULLIF(COUNT(*), 0),
+        2
+    ) AS weather_delay_rate_percent,
+
+    ROUND(AVG(COALESCE(weather_delay, 0))::numeric, 2) AS avg_weather_delay_minutes,
+
+    ROUND(AVG(arr_delay_clean)::numeric, 2) AS avg_arrival_delay_minutes,
+
+    ROUND(AVG(dep_delay_clean)::numeric, 2) AS avg_departure_delay_minutes
+
 FROM flight_weather_dashboard_top10_2016_2018
 WHERE is_cancelled = 0
   AND weather_matched = 1
-GROUP BY weather_condition
-ORDER BY avg_arrival_delay DESC;
+GROUP BY wind_condition
+ORDER BY weather_delay_rate_percent DESC;
 
 --Average Delay by Weather Group
 SELECT
     weather_group,
+
+    CASE
+        WHEN high_wind = 1 THEN 'High Wind'
+        ELSE 'Normal Wind'
+    END AS wind_condition,
+
     COUNT(*) AS total_flights,
-    ROUND(AVG(arr_delay_clean)::numeric, 2) AS avg_arrival_delay
+
+    ROUND(AVG(wind_speed_mph)::numeric, 2) AS avg_wind_speed_mph,
+
+    ROUND(AVG(arr_delay_clean)::numeric, 2) AS avg_arrival_delay,
+
+    ROUND(AVG(dep_delay_clean)::numeric, 2) AS avg_departure_delay,
+
+    ROUND(AVG(COALESCE(weather_delay, 0))::numeric, 2) AS avg_weather_delay
+
 FROM flight_weather_dashboard_top10_2016_2018
 WHERE is_cancelled = 0
   AND weather_matched = 1
-GROUP BY weather_group
-ORDER BY avg_arrival_delay DESC;
+  AND weather_group IS NOT NULL
+  AND wind_speed_mph IS NOT NULL
+
+GROUP BY
+    weather_group,
+    CASE
+        WHEN high_wind = 1 THEN 'High Wind'
+        ELSE 'Normal Wind'
+    END
+
+ORDER BY
+    weather_group,
+    wind_condition;
 
 --Flight Volume by Distance
 WITH distance_groups AS (
@@ -187,3 +227,4 @@ ORDER BY
         WHEN distance_group = '1500-2000' THEN 5
         WHEN distance_group = '2000+' THEN 6
     END;
+
